@@ -5,12 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "assistant-core"
 version = "0.3.0"
-description = "Maintainable student assistant service for CSC10014 Lab 3"
 requires-python = ">=3.10"
 dependencies = ["pydantic>=2.7,<3", "python-dotenv>=1.0,<2"]
-
-[project.scripts]
-assistant-core = "assistant_core.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

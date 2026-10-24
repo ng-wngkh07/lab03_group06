@@ -1,36 +1,50 @@
-# Assistant Core Architecture
+# Architecture: `assistant_core`
 
-## Module responsibilities
+## 1. Module Table
 
 | Module | Responsibility |
-|---|---|
-| `config.py` | Read settings from the environment and validate provider credentials, rates, credit limits, data path, and log level. The API key is excluded from the settings representation. |
-| `errors.py` | Define named assistant, configuration, data, request-validation, and provider errors. |
-| `models.py` | Define the typed public contracts `Message`, `Response`, `Intent`, and `Source`. Message text is limited to 1-2000 characters. |
-| `router.py` | Choose an intent using simple deterministic rules for greetings, fees, and office names; other questions are sent to handbook search. |
-| `knowledge.py` | Load and validate the office CSV and handbook JSON, then expose office lookup and handbook keyword search. Missing or malformed data raises `DataError` during startup. |
-| `tools.py` | Parse credit counts and calculate tuition with deterministic pure functions. No provider or file I/O is used. |
-| `responder.py` | Define the response-generation protocol and provide template and injectable stub implementations. Provider errors use a named `ProviderError`. |
-| `service.py` | Compose dependencies and expose `AssistantService.handle(Message) -> Response` as the sole application entry point. It handles provider fallback and marks degraded responses. |
-| `logging_setup.py` | Configure JSON logs on stderr with an allowlist of operational fields. User messages and credentials are not logged. |
-| `__main__.py` | Build the service, accept command-line or interactive input, call `handle`, and print answers to stdout. |
+| :--- | :--- |
+| `config.py` | Read settings from environment variables and `.env`; validate required keys and fallback defaults. |
+| `errors.py` | Named domain exception hierarchy (`AssistantError`, `ConfigError`, `DataError`, `InvalidRequest`, `ProviderError`). |
+| `models.py` | Public data contract: `Message`, `Response`, `Intent`, `Source` defined with Pydantic. |
+| `router.py` | Choose an `Intent` from input text using lightweight, deterministic rules. |
+| `knowledge.py` | Encapsulate office directory (CSV) and student handbook (JSON) knowledge sources and retrieval. |
+| `tools.py` | Pure, deterministic utility functions (credit parsing and tuition calculation). |
+| `responder.py` | Response generation behind a unified `Responder` Protocol (Template fallback and Stub LLM adapter). |
+| `service.py` | `AssistantService.handle(msg: Message) -> Response` — the single entry point orchestrating routing, tools, knowledge, and responders. |
+| `logging_setup.py` | Structured JSON log formatter routing structured events to `sys.stderr`. |
+| `__main__.py` | Command-line interface accepting queries, logging telemetry, and printing answers to `sys.stdout`. |
 
-## Service interface
+## 2. Service Interface
 
-All clients use `AssistantService.handle(msg: Message) -> Response`.
+The service exposes a single unified method:
+```python
+AssistantService.handle(msg: Message) -> Response
+```
 
-- `Message` contains `text` (1-2000 characters) and `session_id` (defaults to `local`). Pydantic rejects invalid message data at construction.
-- `Response` contains `answer`, `intent`, `sources`, and `degraded`.
-- Invalid fee details raise `InvalidRequest`, a named request-validation error. Invalid environment configuration raises `ConfigError`; missing or malformed startup data raises `DataError`.
-- A `ProviderError` is caught by the service. It returns a template answer with the matched source and `degraded=True`; provider-specific failures do not reach callers.
-- The CLI, a future FastAPI backend, and a future UI can share the same method without depending on terminal behavior.
+- **Input (`Message`)**:
+  - `text`: Validated non-empty string between 1 and 2,000 characters.
+  - `session_id`: Session identifier (defaults to `"local"`).
+- **Output (`Response`)**:
+  - `answer`: Text response to present to the user.
+  - `intent`: Classified intent enum (`GREETING`, `FEE`, `OFFICE`, `RULE`, `UNKNOWN`).
+  - `sources`: List of citations (`Source(id, title)`), non-empty when referencing handbook rules.
+  - `degraded`: Boolean flag (`True` if a fallback or degraded calculation path was used).
+- **Error Boundary Contract**:
+  - Invalid user input is rejected early at the boundary with `ValidationError`.
+  - Startup errors in settings or missing data files raise `ConfigError` or `DataError`.
+  - Upstream provider failures (e.g., `ProviderError` from an LLM timeout) are caught internally; the service degrades gracefully using `TemplateResponder` without leaking exceptions or secrets to the caller.
 
-## Design decisions
+## 3. Key Architectural Decisions
 
-1. **Tuition stays in `tools.py` and never uses an LLM.** Rates and credit limits make this a deterministic calculation that is easy to test and cannot be varied by generated text.
-2. **The provider sits behind `Responder`, with a template fallback.** The stub works offline and can simulate a failure, while dependency injection lets the service be tested and a future provider be swapped without changing service orchestration.
-3. **Configuration comes from the environment and logs use an allowlist.** `.env.example` documents every supported setting; `.env` is ignored, the API key uses `repr=False`, and the JSON formatter excludes prompts and secrets.
+1. **Deterministic Tools for Arithmetic Calculations (`tools.py`)**:
+   - *Decision*: Tuition calculation and credit parsing are pure mathematical functions in `tools.py`, never delegated to a language model.
+   - *Reason*: Financial calculations require 100% exactness and zero hallucination. Pure functions have no side effects, no I/O, and are trivial to test deterministically across boundary conditions.
 
-## Scope note
+2. **Adapter Pattern for LLM Provider (`responder.py`)**:
+   - *Decision*: The LLM interaction is abstracted behind the `Responder` Protocol with `TemplateResponder` and `StubLLMResponder` implementations.
+   - *Reason*: Unit tests and CI/CD pipelines run entirely offline without API keys or network flakiness. Swapping between stubs, offline templates, and real LLMs (e.g., in Week 4) requires no modifications to `AssistantService`.
 
-The original monolith also has `history`, `stats`, and `save` commands. The Lab 3 target contract does not define their persistence or privacy behavior, so they are not carried into this service skeleton. They can be added as a separately specified feature without placing file or history responsibilities in the request service.
+3. **Externalized Configuration (12-Factor III) & Secret Protection (`config.py`)**:
+   - *Decision*: All configurations and credentials load from environment variables and `.env`, with `.env.example` committed to version control and `.env` strictly ignored by `.gitignore`. The `llm_api_key` attribute uses `Field(repr=False)`.
+   - *Reason*: Eliminates hard-coded credentials and prevents accidental secret leakage in logs, stack traces, or Git commits while enabling clean environment-specific deployments.
