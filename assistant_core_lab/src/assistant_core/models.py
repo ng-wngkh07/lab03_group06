@@ -1,5 +1,3 @@
-"""Typed public request and response contracts."""
-
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -26,5 +24,5 @@ class Source(BaseModel):
 class Response(BaseModel):
     answer: str
     intent: Intent
-    sources: list[Source] = Field(default_factory=list)
+    sources: list[Source] = []
     degraded: bool = False

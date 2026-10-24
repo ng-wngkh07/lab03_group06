@@ -1,7 +1,32 @@
 [
-  {"id": "H26-4.2", "title": "Retaking a course", "text": "Students may retake a course they failed. Retake credits are charged at 1.5 times the normal rate. Final-year students must register retakes before week 2."},
-  {"id": "H26-5.3", "title": "Thesis registration", "text": "Students may register a thesis when they have at least 120 accumulated credits and a GPA of at least 2.0."},
-  {"id": "H26-5.4", "title": "Late thesis registration", "text": "Late thesis registration requires approval from the Faculty and the supervisor."},
-  {"id": "H26-6.1", "title": "Credit load", "text": "A regular semester load is between 14 and 30 credits. More than 30 credits requires approval."},
-  {"id": "H26-7.2", "title": "Exam absence", "text": "Students absent from a final exam for medical reasons must submit evidence to the Training Office within 3 working days."}
+  {
+    "id": "H26-5.3",
+    "title": "Graduation Thesis Registration",
+    "text": "Undergraduate students must have completed at least 100 credits to register for the graduation thesis.",
+    "keywords": ["thesis", "registration", "credits", "graduate", "graduation"]
+  },
+  {
+    "id": "H26-4.1",
+    "title": "Exam Absence Policy",
+    "text": "Requests for exam absence must be submitted to the academic office within 3 working days after the exam date.",
+    "keywords": ["exam", "absence", "deadline", "sick", "miss"]
+  },
+  {
+    "id": "H26-2.1",
+    "title": "Maximum Study Duration",
+    "text": "The maximum duration to complete the undergraduate program is 6 academic years.",
+    "keywords": ["duration", "maximum", "years", "time", "limit"]
+  },
+  {
+    "id": "H26-3.2",
+    "title": "Course Retake Regulations",
+    "text": "Students receiving a grade below D must retake the course. Retake tuition multiplier is 1.5x.",
+    "keywords": ["retake", "failing", "grade", "repeat"]
+  },
+  {
+    "id": "H26-1.4",
+    "title": "Credit Overload Approval",
+    "text": "Registering for more than 24 credits per semester requires approval from the faculty dean.",
+    "keywords": ["overload", "credits", "approval", "maximum", "dean"]
+  }
 ]

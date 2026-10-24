@@ -1,5 +1,3 @@
-"""Replaceable response-generation interface with offline implementations."""
-
 from typing import Protocol
 
 from assistant_core.errors import ProviderError
@@ -7,9 +5,7 @@ from assistant_core.knowledge import Rule
 
 
 class Responder(Protocol):
-    def explain(self, question: str, rule: Rule) -> str:
-        """Explain a matched handbook rule using the supplied question."""
-        ...
+    def explain(self, question: str, rule: Rule) -> str: ...
 
 
 class TemplateResponder:
@@ -18,9 +14,7 @@ class TemplateResponder:
 
 
 class StubLLMResponder:
-    """Offline stand-in for an LLM; failure can be injected in service tests."""
-
-    def __init__(self, fail: bool = False) -> None:
+    def __init__(self, fail: bool = False):
         self.fail = fail
 
     def explain(self, question: str, rule: Rule) -> str:

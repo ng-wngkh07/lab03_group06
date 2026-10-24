@@ -1,19 +1,24 @@
-"""Rule-based intent routing tests."""
-
-import pytest
-
 from assistant_core.models import Intent
 from assistant_core.router import route
 
+OFFICE_NAMES = {"library", "student affairs", "finance"}
 
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("hello!", Intent.GREETING),
-        ("tuition for 18 credits", Intent.FEE),
-        ("where is the library?", Intent.OFFICE),
-        ("can I register my thesis", Intent.RULE),
-    ],
-)
-def test_routes_messages(text: str, expected: Intent) -> None:
-    assert route(text, {"library"}) is expected
+
+def test_route_greeting():
+    assert route("Hello!", OFFICE_NAMES) == Intent.GREETING
+    assert route("xin chao?", OFFICE_NAMES) == Intent.GREETING
+
+
+def test_route_fee():
+    assert route("tuition for 18 credits and 2 retake", OFFICE_NAMES) == Intent.FEE
+    assert route("How much is the fee?", OFFICE_NAMES) == Intent.FEE
+
+
+def test_route_office():
+    assert route("Where is the library?", OFFICE_NAMES) == Intent.OFFICE
+    assert route("contact student affairs office", OFFICE_NAMES) == Intent.OFFICE
+
+
+def test_route_rule():
+    assert route("thesis registration credits", OFFICE_NAMES) == Intent.RULE
+    assert route("exam absence regulations", OFFICE_NAMES) == Intent.RULE

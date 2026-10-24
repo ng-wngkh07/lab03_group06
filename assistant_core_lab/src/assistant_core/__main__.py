@@ -1,85 +1,48 @@
-"""Command-line adapter; all requests use AssistantService.handle."""
-
-import argparse
 import logging
 import sys
-from time import perf_counter
+import time
 
-from pydantic import ValidationError as PydanticValidationError
-
-from assistant_core.config import Settings, load_settings
-from assistant_core.errors import AssistantError, ConfigError
+from assistant_core.config import load_settings
+from assistant_core.errors import AssistantError
 from assistant_core.knowledge import Handbook, OfficeDirectory
-from assistant_core.logging_setup import configure_logging
+from assistant_core.logging_setup import setup_logging
 from assistant_core.models import Message
-from assistant_core.responder import StubLLMResponder, TemplateResponder
+from assistant_core.responder import StubLLMResponder
 from assistant_core.service import AssistantService
 
 
-def build_service(settings: Settings) -> AssistantService:
-    offices = OfficeDirectory.from_csv(settings.data_dir / "offices.csv")
-    handbook = Handbook.from_json(settings.data_dir / "handbook.json")
-    if settings.llm_provider == "stub":
-        responder = StubLLMResponder()
-    elif settings.llm_provider == "template":
-        responder = TemplateResponder()
-    else:
-        raise ConfigError(f"LLM provider {settings.llm_provider!r} is not implemented in Lab 3.")
-    return AssistantService(settings, offices, handbook, responder)
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: python -m assistant_core <question>")
+        sys.exit(1)
 
-
-def _answer(service: AssistantService, text: str, session_id: str) -> bool:
+    question = sys.argv[1]
     try:
-        msg = Message(text=text, session_id=session_id)
-        started = perf_counter()
-        response = service.handle(msg)
-    except (PydanticValidationError, AssistantError) as exc:
-        print(str(exc), file=sys.stderr)
-        return False
+        settings = load_settings()
+        setup_logging(settings.log_level)
+        logger = logging.getLogger("assistant_core")
 
-    latency_ms = round((perf_counter() - started) * 1000, 1)
-    logging.getLogger("assistant_core").info(
-        "handled",
-        extra={
+        offices = OfficeDirectory.from_csv(settings.data_dir / "offices.csv")
+        handbook = Handbook.from_json(settings.data_dir / "handbook.json")
+        responder = StubLLMResponder()
+        service = AssistantService(settings, offices, handbook, responder)
+
+        start_time = time.perf_counter()
+        msg = Message(text=question)
+        response = service.handle(msg)
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 1)
+
+        extra = {
             "intent": response.intent.value,
             "latency_ms": latency_ms,
-            "session": session_id,
+            "session": msg.session_id,
             "degraded": response.degraded,
-        },
-    )
-    print(response.answer)
-    return True
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Student assistant")
-    parser.add_argument("message", nargs="*", help="Question for the assistant")
-    parser.add_argument("--session-id", default="local", help="Session identifier")
-    parser.add_argument("--env-file", default=".env", help="Optional environment file")
-    args = parser.parse_args()
-
-    try:
-        settings = load_settings(args.env_file)
-        configure_logging(settings.log_level)
-        service = build_service(settings)
+        }
+        logger.info("handled", extra=extra)
+        print(response.answer)
     except AssistantError as exc:
-        print(str(exc), file=sys.stderr)
-        raise SystemExit(2) from exc
-
-    if args.message:
-        _answer(service, " ".join(args.message), args.session_id)
-        return
-
-    print("assistant ready", file=sys.stderr)
-    while True:
-        try:
-            question = input("> ")
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        if question.strip().lower() == "quit":
-            break
-        _answer(service, question, args.session_id)
+        sys.stderr.write(f"Error: {exc}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

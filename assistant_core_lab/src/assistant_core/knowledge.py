@@ -1,10 +1,8 @@
-"""Typed office and handbook knowledge sources loaded from CSV and JSON."""
-
 import csv
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from assistant_core.errors import DataError
 
@@ -17,38 +15,27 @@ class Office:
 
 
 class OfficeDirectory:
-    def __init__(self, offices: dict[str, Office]) -> None:
+    def __init__(self, offices: dict[str, Office]):
         self._offices = offices
 
     @classmethod
     def from_csv(cls, path: Path) -> "OfficeDirectory":
         try:
-            with path.open(encoding="utf-8", newline="") as file:
-                reader = csv.DictReader(file)
-                required = {"name", "room", "hours"}
-                if reader.fieldnames is None or not required.issubset(reader.fieldnames):
-                    raise DataError(f"office CSV must contain columns: {', '.join(sorted(required))}")
-                rows = list(reader)
+            with path.open(encoding="utf-8", newline="") as f:
+                rows = list(csv.DictReader(f))
         except FileNotFoundError as exc:
             raise DataError(f"office file not found: {path}") from exc
-        except (OSError, UnicodeError, csv.Error) as exc:
-            raise DataError(f"could not read office file: {path}") from exc
-
-        offices: dict[str, Office] = {}
-        for line_number, row in enumerate(rows, start=2):
-            if not all((row.get(key) or "").strip() for key in required):
-                raise DataError(f"office record at line {line_number} is missing a required value")
-            office = Office(row["name"].strip(), row["room"].strip(), row["hours"].strip())
-            offices[office.name.lower()] = office
-        return cls(offices)
+        except (csv.Error, KeyError) as exc:
+            raise DataError(f"malformed office file: {path}: {exc}") from exc
+        return cls({r["name"].lower(): Office(r["name"], r["room"], r["hours"]) for r in rows})
 
     @property
     def names(self) -> set[str]:
         return set(self._offices)
 
     def find(self, text: str) -> Office | None:
-        lowered = text.lower()
-        return next((office for name, office in self._offices.items() if name in lowered), None)
+        t = text.lower()
+        return next((o for name, o in self._offices.items() if name in t), None)
 
 
 @dataclass(frozen=True)
@@ -56,39 +43,62 @@ class Rule:
     id: str
     title: str
     text: str
+    keywords: list[str] = field(default_factory=list)
 
 
 class Handbook:
-    def __init__(self, rules: list[Rule]) -> None:
+    def __init__(self, rules: list[Rule]):
         self._rules = rules
 
     @classmethod
     def from_json(cls, path: Path) -> "Handbook":
         try:
-            with path.open(encoding="utf-8") as file:
-                data: Any = json.load(file)
+            with path.open(encoding="utf-8") as f:
+                data = json.load(f)
         except FileNotFoundError as exc:
             raise DataError(f"handbook file not found: {path}") from exc
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise DataError(f"could not read handbook file: {path}") from exc
+        except (json.JSONDecodeError, KeyError) as exc:
+            raise DataError(f"malformed handbook file: {path}: {exc}") from exc
 
-        if not isinstance(data, list):
-            raise DataError("handbook JSON must contain a list of rules")
-        rules: list[Rule] = []
-        for index, item in enumerate(data):
-            if not isinstance(item, dict) or not all(item.get(key) for key in ("id", "title", "text")):
-                raise DataError(f"handbook rule at index {index} must include id, title, and text")
-            rules.append(Rule(str(item["id"]), str(item["title"]), str(item["text"])))
+        rules = [
+            Rule(
+                id=item["id"],
+                title=item["title"],
+                text=item["text"],
+                keywords=[k.lower() for k in item.get("keywords", [])],
+            )
+            for item in data
+        ]
         return cls(rules)
 
     def search(self, query: str) -> Rule | None:
-        words = [word for word in query.lower().split() if len(word) > 3]
+        stopwords = {
+            "to",
+            "the",
+            "a",
+            "an",
+            "in",
+            "on",
+            "of",
+            "for",
+            "and",
+            "or",
+            "is",
+            "are",
+            "at",
+            "by",
+            "with",
+            "how",
+        }
+        q_tokens = set(re.findall(r"\w+", query.lower())) - stopwords
+        if not q_tokens:
+            return None
         best_rule: Rule | None = None
-        best_score = 0
+        best_overlap = 0
         for rule in self._rules:
-            rule_text = rule.text.lower()
-            score = sum(word in rule_text for word in words)
-            if score > best_score:
+            rule_tokens = set(rule.keywords) | (set(re.findall(r"\w+", rule.title.lower())) - stopwords)
+            overlap = len(q_tokens & rule_tokens)
+            if overlap > best_overlap:
+                best_overlap = overlap
                 best_rule = rule
-                best_score = score
-        return best_rule
+        return best_rule if best_overlap > 0 else None

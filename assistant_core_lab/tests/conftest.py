@@ -1,5 +1,3 @@
-"""Shared offline fixtures for the assistant service tests."""
-
 from pathlib import Path
 
 import pytest
@@ -9,12 +7,44 @@ from assistant_core.knowledge import Handbook, OfficeDirectory
 from assistant_core.responder import StubLLMResponder
 from assistant_core.service import AssistantService
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+@pytest.fixture
+def data_dir() -> Path:
+    return Path(__file__).parent.parent / "data"
 
 
 @pytest.fixture
-def service() -> AssistantService:
-    settings = Settings(data_dir=PROJECT_ROOT / "data")
-    offices = OfficeDirectory.from_csv(settings.data_dir / "offices.csv")
-    handbook = Handbook.from_json(settings.data_dir / "handbook.json")
-    return AssistantService(settings, offices, handbook, StubLLMResponder())
+def settings(data_dir: Path) -> Settings:
+    return Settings(
+        data_dir=data_dir,
+        llm_provider="stub",
+        credit_rate_vnd=450_000,
+        retake_multiplier=1.5,
+        max_credits=30,
+        log_level="INFO",
+    )
+
+
+@pytest.fixture
+def offices(data_dir: Path) -> OfficeDirectory:
+    return OfficeDirectory.from_csv(data_dir / "offices.csv")
+
+
+@pytest.fixture
+def handbook(data_dir: Path) -> Handbook:
+    return Handbook.from_json(data_dir / "handbook.json")
+
+
+@pytest.fixture
+def responder() -> StubLLMResponder:
+    return StubLLMResponder()
+
+
+@pytest.fixture
+def service(
+    settings: Settings,
+    offices: OfficeDirectory,
+    handbook: Handbook,
+    responder: StubLLMResponder,
+) -> AssistantService:
+    return AssistantService(settings, offices, handbook, responder)
