@@ -43,6 +43,6 @@ This trade-off is essential and well worth the initial overhead in the following
 
 ### 3. Verification & Quality Gates Summary
 
-- **Unit Tests**: All 23 tests pass in 0.04s (`pytest -q`).
+- **Unit Tests**: All 26 tests pass in 0.03s (`pytest -q`).
 - **Code Formatting & Linting**: Completely clean on `ruff check .`, `ruff format .`, and `ruff check --select BLE .` (0 errors, 0 warnings).
 - **Interface Contract**: Tested fallback path with `StubLLMResponder(fail=True)` verifies `degraded=True` and citation propagation without unhandled exceptions.

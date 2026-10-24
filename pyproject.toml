@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assistant-core"
+version = "0.3.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.7,<3",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+    "ruff>=0.6,<1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["assistant_core_lab/src"]
+testpaths = ["assistant_core_lab/tests"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["monolith"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "BLE"]
